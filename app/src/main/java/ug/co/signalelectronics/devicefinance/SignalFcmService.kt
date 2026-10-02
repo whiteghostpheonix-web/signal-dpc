@@ -8,8 +8,6 @@ import com.google.firebase.messaging.RemoteMessage
 class SignalFcmService : FirebaseMessagingService() {
     companion object {
         private const val TAG = "SignalDPC.FCM"
-        const val ACTION_LOCK = "ug.co.signalelectronics.devicefinance.LOCK"
-        const val ACTION_UNLOCK = "ug.co.signalelectronics.devicefinance.UNLOCK"
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -21,22 +19,27 @@ class SignalFcmService : FirebaseMessagingService() {
         Log.i(TAG, "FCM received: action=$action reason=$reason id=$commandId")
 
         when (action) {
-            "LOCK" -> handleLock(reason, commandId)
-            "UNLOCK" -> handleUnlock(reason, commandId)
-            "TEST" -> Log.i(TAG, "Test push received")
-            else -> Log.w(TAG, "Unknown action: $action")
+            "LOCK" -> {
+                Notifier.push(this, "LOCK command received", "reason=$reason")
+                handleLock(reason, commandId)
+            }
+            "UNLOCK" -> {
+                Notifier.push(this, "UNLOCK command received", "reason=$reason")
+                handleUnlock(reason, commandId)
+            }
+            "TEST" -> {
+                Notifier.push(this, "TEST push received", "reason=$reason")
+            }
+            else -> {
+                Notifier.push(this, "FCM: unknown action", "action=$action")
+            }
         }
     }
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.i(TAG, "New FCM token: $token")
-        // Persist locally
         getSharedPreferences("signal_dpc", MODE_PRIVATE)
-            .edit()
-            .putString("fcm_token", token)
-            .apply()
-        // Send to backend if we have IMEI
+            .edit().putString("fcm_token", token).apply()
         val imei = getSharedPreferences("signal_dpc", MODE_PRIVATE).getString("imei", null)
         if (!imei.isNullOrEmpty()) {
             Thread { ApiClient.updateFcmToken(imei, token) }.start()
@@ -44,13 +47,25 @@ class SignalFcmService : FirebaseMessagingService() {
     }
 
     private fun handleLock(reason: String, commandId: Int?) {
+        // Persist lock state so BootReceiver can re-apply after reboot
+        getSharedPreferences("signal_dpc", MODE_PRIVATE)
+            .edit().putBoolean("was_locked", true).apply()
+
         KeepAliveService.stop(this)
-        DeviceController.enterKiosk(this)
+
+        // Apply full kiosk restrictions
+        KioskController.enterFullKiosk(this)
+
+        // Lock the screen
         DeviceController.lockDevice(this)
 
-        // Bring up the lock screen activity
+        // Bring our lock screen activity to the foreground
         val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK
+                    or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+            )
             putExtra("locked", true)
             putExtra("reason", reason)
         }
@@ -60,7 +75,10 @@ class SignalFcmService : FirebaseMessagingService() {
     }
 
     private fun handleUnlock(reason: String, commandId: Int?) {
-        DeviceController.exitKiosk(this)
+        getSharedPreferences("signal_dpc", MODE_PRIVATE)
+            .edit().putBoolean("was_locked", false).apply()
+
+        KioskController.exitFullKiosk(this)
         KeepAliveService.start(this)
 
         val intent = Intent(this, MainActivity::class.java).apply {

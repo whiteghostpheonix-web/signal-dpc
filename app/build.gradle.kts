@@ -12,8 +12,8 @@ android {
         applicationId = "ug.co.signalelectronics.devicefinance"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 11
+        versionName = "0.2.1"
     }
 
     buildTypes {
@@ -54,4 +54,7 @@ dependencies {
 
     // OkHttp for backend calls
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // WorkManager for periodic schedule enforcement
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 }
