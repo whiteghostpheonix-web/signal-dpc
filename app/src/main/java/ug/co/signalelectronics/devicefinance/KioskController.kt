@@ -11,22 +11,21 @@ import android.util.Log
 object KioskController {
     private const val TAG = "SignalDPC.Kiosk"
 
-    // Apps allowed to run inside kiosk mode
+    // Allowed apps for the customer kiosk
     private val WHITELIST = listOf(
-        // WhatsApp
-        "com.whatsapp",
-        "com.whatsapp.w4b",
-        // Settings (many variants across OEMs)
+        "ug.co.signalelectronics.devicefinance",
+        "com.android.chrome",
+        "com.android.browser",
         "com.android.settings",
         "com.huawei.android.settings",
         "com.samsung.android.settings",
-        // Dialer (many variants)
         "com.android.dialer",
         "com.google.android.dialer",
         "com.android.phone",
-        "com.huawei.contacts",
-        // Contacts (usually needed for dialer)
         "com.android.contacts",
+        "com.android.calculator2",
+        "com.whatsapp",
+        "com.whatsapp.w4b",
         "com.android.providers.contacts"
     )
 
@@ -40,7 +39,6 @@ object KioskController {
         dpm(ctx).isDeviceOwnerApp(ctx.packageName)
 
     fun kioskPackages(ctx: Context): Array<String> {
-        // Our app + whitelisted
         return (listOf(ctx.packageName) + WHITELIST).toTypedArray()
     }
 
@@ -73,11 +71,8 @@ object KioskController {
             val d = dpm(ctx)
             val a = admin(ctx)
 
-            // Whitelist mode: our app + WhatsApp + Settings + Dialer
             d.setLockTaskPackages(a, kioskPackages(ctx))
 
-            // Kiosk features: allow home (to switch between whitelisted apps),
-            // allow notifications (so WhatsApp notifs show), keep it usable
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 d.setLockTaskFeatures(
                     a,
@@ -87,15 +82,12 @@ object KioskController {
                 )
             }
 
-            // Status bar stays (customer needs WiFi signal indicator)
             d.setStatusBarDisabled(a, false)
 
-            // Keyguard stays enabled so phone is protected when screen off
-            // (don't disable keyguard for whitelist mode)
-
-            // Apply restrictions
             for (r in RESTRICTIONS) {
-                try { d.addUserRestriction(a, r) } catch (e: Exception) {
+                try {
+                    d.addUserRestriction(a, r)
+                } catch (e: Exception) {
                     Log.w(TAG, "Failed restriction $r: ${e.message}")
                 }
             }
