@@ -3,22 +3,130 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="24dp"
+    android:background="#F3F8FF"
     android:fillViewport="true">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:padding="24dp">
 
         <TextView
-            android:id="@+id/statusTitle"
+            android:id="@+id/logoTitle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:text="Signal Electronics"
-            android:textSize="28sp"
+            android:textSize="30sp"
             android:textStyle="bold"
+            android:textColor="#0F62FE"
             android:gravity="center"
             app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <TextView
+            android:id="@+id/subTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Pay with confidence"
+            android:textSize="16sp"
+            android:textColor="#1F3A5F"
+            android:gravity="center"
+            app:layout_constraintTop_toBottomOf="@id/logoTitle"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <Button
+            android:id="@+id/payButton"
+            android:layout_width="0dp"
+            android:layout_height="64dp"
+            android:layout_marginTop="28dp"
+            android:text="Pay with Signal Electronics"
+            android:textAllCaps="false"
+            android:backgroundTint="#0F62FE"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            app:layout_constraintTop_toBottomOf="@id/subTitle"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <LinearLayout
+            android:id="@+id/quickActions"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:orientation="horizontal"
+            app:layout_constraintTop_toBottomOf="@id/payButton"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <Button
+                android:id="@+id/wifiButton"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:text="Wi‑Fi"
+                android:textAllCaps="false"
+                android:backgroundTint="#EAF3FF"
+                android:textColor="#0F62FE" />
+
+            <Button
+                android:id="@+id/networkButton"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Mobile Data"
+                android:textAllCaps="false"
+                android:backgroundTint="#EAF3FF"
+                android:textColor="#0F62FE" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/supportActions"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal"
+            app:layout_constraintTop_toBottomOf="@id/quickActions"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <Button
+                android:id="@+id/helpButton"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:text="Help"
+                android:textAllCaps="false"
+                android:backgroundTint="#EAF3FF"
+                android:textColor="#0F62FE" />
+
+            <Button
+                android:id="@+id/feedbackButton"
+                android:layout_width="0dp"
+                android:layout_height="64dp"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Feedback"
+                android:textAllCaps="false"
+                android:backgroundTint="#EAF3FF"
+                android:textColor="#0F62FE" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/supportButton"
+            android:layout_width="0dp"
+            android:layout_height="56dp"
+            android:layout_marginTop="20dp"
+            android:text="Contact Support"
+            android:textAllCaps="false"
+            android:backgroundTint="#0A4EC8"
+            android:textColor="#FFFFFF"
+            app:layout_constraintTop_toBottomOf="@id/supportActions"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
@@ -26,40 +134,11 @@
             android:id="@+id/statusMessage"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Device management active."
-            android:textSize="15sp"
+            android:layout_marginTop="22dp"
+            android:text="Device management active"
+            android:textColor="#35557A"
+            android:textSize="14sp"
             android:gravity="center"
-            app:layout_constraintTop_toBottomOf="@id/statusTitle"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
-
-        <Button
-            android:id="@+id/payButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:text="Pay Installment"
-            app:layout_constraintTop_toBottomOf="@id/statusMessage"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
-
-        <Button
-            android:id="@+id/supportButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Contact Support: +256 706 352 822"
-            app:layout_constraintTop_toBottomOf="@id/payButton"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
-
-        <Button
-            android:id="@+id/actionButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="OK"
             app:layout_constraintTop_toBottomOf="@id/supportButton"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
