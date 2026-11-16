@@ -12,12 +12,24 @@ android {
         applicationId = "ug.co.signalelectronics.devicefinance"
         minSdk = 26
         targetSdk = 34
-        versionCode = 11
-        versionName = "0.2.1"
+        versionCode = 15
+        versionName = "0.2.5"
+    }
+
+    signingConfigs {
+        create("release") {
+            val signingFile = providers.gradleProperty("SIGNAL_DPC_STORE_FILE").orNull
+            val signingPassword = providers.gradleProperty("SIGNAL_DPC_STORE_PASSWORD").orNull
+            storeFile = file(signingFile ?: error("SIGNAL_DPC_STORE_FILE is required for a release build"))
+            storePassword = signingPassword ?: error("SIGNAL_DPC_STORE_PASSWORD is required")
+            keyAlias = providers.gradleProperty("SIGNAL_DPC_KEY_ALIAS").orNull ?: "signal-dpc-release"
+            keyPassword = providers.gradleProperty("SIGNAL_DPC_KEY_PASSWORD").orNull ?: signingPassword
+        }
     }
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

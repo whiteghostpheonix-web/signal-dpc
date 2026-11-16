@@ -27,6 +27,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // A payment return URL is not proof of payment. Refresh the account
+        // from the backend and only report that the status was checked.
+        if (intent?.data?.scheme == "signaldpc") {
+            refreshAfterPaymentReturn()
+        }
+
         isLocked = intent.getBooleanExtra("locked", false)
             || getSharedPreferences("signal_dpc", MODE_PRIVATE).getBoolean("was_locked", false)
         val reason = intent.getStringExtra("reason") ?: ""
@@ -35,7 +41,6 @@ class MainActivity : AppCompatActivity() {
         val message = findViewById<TextView>(R.id.statusMessage)
         val payBtn = findViewById<Button>(R.id.payButton)
         val supportBtn = findViewById<Button>(R.id.supportButton)
-        val actionBtn = findViewById<Button>(R.id.actionButton)
 
         if (isLocked) {
             title.text = "Device Locked"
@@ -69,7 +74,7 @@ class MainActivity : AppCompatActivity() {
         payBtn.setOnClickListener {
             val i = Intent(this, PaymentActivity::class.java).apply {
                 putExtra("imei", currentImei)
-                putExtra("amount", "0")
+                putExtra("amount", getSharedPreferences("signal_dpc", MODE_PRIVATE).getLong("next_due_amount_ugx", 0L).toString())
                 putExtra("intent_id", "")
             }
             startActivity(i)
@@ -81,14 +86,102 @@ class MainActivity : AppCompatActivity() {
             startActivity(i)
         }
 
-        // Action button
-        actionBtn.setOnClickListener {
-            if (!isLocked) {
-                // No-op
-            }
-        }
 
         initialize()
+        renderDashboard()
+    }
+
+
+    private fun refreshAfterPaymentReturn() {
+        Thread {
+            val prefs = getSharedPreferences("signal_dpc", MODE_PRIVATE)
+            val imei = prefs.getString("imei", null)
+            val refreshed = !imei.isNullOrBlank() && ApiClient.heartbeat(this, imei)
+            runOnUiThread {
+                if (refreshed) {
+                    applyVerifiedServerState()
+                    UpdateChecker.checkAndUpdate(this@MainActivity)
+                }
+                renderDashboard()
+                val message = if (refreshed) "Account status refreshed from Signal Electronics." else "Payment status is still being checked. Please check again shortly or contact support."
+                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }.start()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.data?.scheme == "signaldpc") refreshAfterPaymentReturn()
+    }
+
+    private fun applyVerifiedServerState() {
+        val prefs = getSharedPreferences("signal_dpc", MODE_PRIVATE)
+        val serverStatus = prefs.getString("server_device_status", "active") ?: "active"
+        if (serverStatus == "active" && prefs.getBoolean("unlock_authorized", false)) {
+            isLocked = false
+            prefs.edit().putBoolean("was_locked", false).apply()
+            try { KioskController.exitFullKiosk(this); KioskController.stopLockTask(this) } catch (_: Exception) {}
+        } else if (serverStatus == "locked") {
+            isLocked = true
+            prefs.edit().putBoolean("was_locked", true).apply()
+            try { KioskController.enterFullKiosk(this) } catch (_: Exception) {}
+            try { KioskController.startLockTask(this) } catch (_: Exception) {}
+        }
+    }
+
+    private fun renderDashboard() {
+        val prefs = getSharedPreferences("signal_dpc", MODE_PRIVATE)
+        val title = findViewById<TextView>(R.id.statusTitle) ?: return
+        val message = findViewById<TextView>(R.id.statusMessage) ?: return
+        val planAmount = findViewById<TextView>(R.id.planAmount)
+        val planSummary = findViewById<TextView>(R.id.planSummary)
+        val balance = prefs.getLong("outstanding_balance_ugx", -1L)
+        val nextAmount = prefs.getLong("next_due_amount_ugx", 0L)
+        val dueDate = prefs.getString("next_due_date", "") ?: ""
+        val serverStatus = prefs.getString("server_device_status", "unknown") ?: "unknown"
+        val money = java.text.NumberFormat.getNumberInstance(java.util.Locale("en", "UG")).format(maxOf(0L, balance))
+        title.text = if (serverStatus == "locked" || isLocked) "Device Restricted" else "Device Protected"
+        message.text = when {
+            serverStatus == "locked" || isLocked -> "Your device has a payment restriction. Make the required payment below; access is restored after Signal Electronics verifies it."
+            balance < 0 -> "Connecting securely to Signal Electronics to load your finance plan."
+            balance == 0L -> "Your device finance balance is clear. Your device management protection remains active."
+            else -> "Outstanding balance: UGX $money\nNext due: ${if (dueDate.isBlank()) "Not scheduled" else dueDate}"
+        }
+        planAmount?.text = if (balance < 0) "Loading plan…" else "UGX $money"
+        planSummary?.text = if (balance < 0) "Waiting for a secure account refresh." else if (balance == 0L) "No outstanding installments." else "Next payment: UGX ${java.text.NumberFormat.getNumberInstance(java.util.Locale("en", "UG")).format(nextAmount)}${if (dueDate.isBlank()) "" else " · Due $dueDate"}"
+        val securityStatus = findViewById<TextView>(R.id.securityStatus)
+        val approvedAppsText = findViewById<TextView>(R.id.approvedAppsText)
+        val security = try { org.json.JSONObject(prefs.getString("security_config", "{}")) } catch (_: Exception) { org.json.JSONObject() }
+        val knox = security.optJSONObject("knox") ?: org.json.JSONObject()
+        val transsion = security.optJSONObject("transsion") ?: org.json.JSONObject()
+        val knoxState = if (knox.optBoolean("configured", false)) "configured" else "awaiting official vendor credentials/support"
+        val transsionState = if (transsion.optBoolean("configured", false)) "configured" else "awaiting official vendor credentials/support"
+        securityStatus?.text = "Samsung Knox: $knoxState\nTranssion: $transsionState\nBase Android device protections: ${if (KioskController.isDeviceOwner(this)) "Device Owner active" else "Device Owner not active"}"
+        val approved = try { org.json.JSONArray(prefs.getString("allowed_apps", "[]")) } catch (_: Exception) { org.json.JSONArray() }
+        val appNames = (0 until approved.length()).map { approved.optString(it) }.filter { it.isNotBlank() }
+        approvedAppsText?.text = if (appNames.isEmpty()) "Approved apps will appear after the device receives its policy." else "Allowed apps: " + appNames.joinToString(", ")
+
+        val history = findViewById<android.widget.LinearLayout>(R.id.historyContainer)
+        history?.removeAllViews()
+        val rows = try { org.json.JSONArray(prefs.getString("payment_history", "[]")) } catch (_: Exception) { org.json.JSONArray() }
+        if (rows.length() == 0) {
+            val empty = TextView(this).apply { text = "No confirmed payments yet"; textSize = 13f; setTextColor(android.graphics.Color.DKGRAY) }
+            history?.addView(empty)
+        } else {
+            for (i in 0 until minOf(rows.length(), 5)) {
+                val item = rows.getJSONObject(i)
+                val amount = item.optLong("amount_ugx", 0L)
+                val ref = item.optString("reference", "")
+                val row = TextView(this).apply {
+                    text = "UGX ${java.text.NumberFormat.getNumberInstance(java.util.Locale("en", "UG")).format(amount)}  ·  ${item.optString("paid_at", "")}\n$ref"
+                    textSize = 12f
+                    setTextColor(android.graphics.Color.DKGRAY)
+                    setPadding(0, 8, 0, 8)
+                }
+                history?.addView(row)
+            }
+        }
     }
 
     override fun onBackPressed() {
@@ -128,24 +221,39 @@ class MainActivity : AppCompatActivity() {
             prefs.edit().putString("imei", currentImei).apply()
         }
 
+        val enrollmentToken = readProvisioningExtra("enrollment_token")
+        if (!enrollmentToken.isNullOrBlank() && enrollmentToken.matches(Regex("[a-fA-F0-9]{64}"))) {
+            try {
+                DeviceCredentialStore.save(this, enrollmentToken.lowercase())
+                prefs.edit().remove("provisioning_enrollment_token").apply()
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not secure device enrollment credential", e)
+            }
+        }
+        Thread {
+            val ok = ApiClient.heartbeat(this@MainActivity, currentImei)
+            runOnUiThread {
+                if (ok) {
+                    applyVerifiedServerState()
+                    UpdateChecker.checkAndUpdate(this@MainActivity)
+                }
+                renderDashboard()
+            }
+        }.start()
+
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 val token = task.result
                 prefs.edit().putString("fcm_token", token).apply()
-                val customerName = prefs.getString("customer_name", "Unknown") ?: "Unknown"
-                val customerPhone = prefs.getString("customer_phone", "") ?: ""
                 Thread {
-                    ApiClient.registerDevice(
-                        currentImei,
-                        customerName,
-                        customerPhone,
-                        token,
-                        prefs.getString("pending_plan_id", null),
-                        prefs.getString("pending_start_date", null)
-                    )
-                    // Clear the pending flag once sent
-                    prefs.edit().remove("pending_plan_id").remove("pending_start_date").apply()
-                    ApiClient.heartbeat(this@MainActivity, currentImei)
+                    val ok = ApiClient.heartbeat(this@MainActivity, currentImei, token)
+                    runOnUiThread {
+                        if (ok) {
+                            applyVerifiedServerState()
+                            UpdateChecker.checkAndUpdate(this@MainActivity)
+                        }
+                        renderDashboard()
+                    }
                 }.start()
             }
         }

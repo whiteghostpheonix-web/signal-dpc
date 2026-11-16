@@ -11,23 +11,11 @@ import android.util.Log
 object KioskController {
     private const val TAG = "SignalDPC.Kiosk"
 
-    // Apps allowed to run inside kiosk mode
-    private val WHITELIST = listOf(
-        // WhatsApp
-        "com.whatsapp",
-        "com.whatsapp.w4b",
-        // Settings (many variants across OEMs)
-        "com.android.settings",
-        "com.huawei.android.settings",
-        "com.samsung.android.settings",
-        // Dialer (many variants)
-        "com.android.dialer",
-        "com.google.android.dialer",
-        "com.android.phone",
-        "com.huawei.contacts",
-        // Contacts (usually needed for dialer)
-        "com.android.contacts",
-        "com.android.providers.contacts"
+    // Default customer-approved apps. The server can replace this list per device.
+    private val DEFAULT_WHITELIST = listOf(
+        "com.whatsapp", "com.whatsapp.w4b",
+        "com.android.dialer", "com.google.android.dialer", "com.android.phone",
+        "com.android.contacts", "com.android.providers.contacts"
     )
 
     private fun dpm(ctx: Context) =
@@ -40,8 +28,14 @@ object KioskController {
         dpm(ctx).isDeviceOwnerApp(ctx.packageName)
 
     fun kioskPackages(ctx: Context): Array<String> {
-        // Our app + whitelisted
-        return (listOf(ctx.packageName) + WHITELIST).toTypedArray()
+        val stored = ctx.getSharedPreferences("signal_dpc", Context.MODE_PRIVATE).getString("allowed_apps", null)
+        val configured = try {
+            val json = org.json.JSONArray(stored ?: "[]")
+            (0 until json.length()).map { json.optString(it) }
+                .filter { it.matches(Regex("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) }
+        } catch (_: Exception) { emptyList() }
+        val selected = if (configured.isNotEmpty()) configured else DEFAULT_WHITELIST
+        return (listOf(ctx.packageName) + selected).distinct().toTypedArray()
     }
 
     private val RESTRICTIONS = listOf(
@@ -118,11 +112,9 @@ object KioskController {
             }
             d.setStatusBarDisabled(a, false)
 
-            for (r in RESTRICTIONS) {
-                try { d.clearUserRestriction(a, r) } catch (_: Exception) {}
-            }
-
-            Log.i(TAG, "Kiosk exited")
+            // Finance lock is lifted, but base security restrictions (factory reset,
+            // safe boot, uninstall and debugging protections) remain in force.
+            Log.i(TAG, "Kiosk exited; base device protections retained")
         } catch (e: Exception) {
             Log.e(TAG, "exitFullKiosk failed", e)
         }

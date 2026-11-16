@@ -27,6 +27,16 @@ class SignalFcmService : FirebaseMessagingService() {
                 Notifier.push(this, "UNLOCK command received", "reason=$reason")
                 handleUnlock(reason, commandId)
             }
+            "REFRESH_POLICY" -> {
+                val imei = getSharedPreferences("signal_dpc", MODE_PRIVATE).getString("imei", null)
+                if (!imei.isNullOrBlank()) Thread {
+                    val ok = ApiClient.heartbeat(this, imei)
+                    if (ok && getSharedPreferences("signal_dpc", MODE_PRIVATE).getBoolean("was_locked", false)) {
+                        KioskController.enterFullKiosk(this)
+                    }
+                    commandId?.let { ApiClient.acknowledgeCommand(this, it) }
+                }.start()
+            }
             "TEST" -> {
                 Notifier.push(this, "TEST push received", "reason=$reason")
             }
@@ -42,7 +52,7 @@ class SignalFcmService : FirebaseMessagingService() {
             .edit().putString("fcm_token", token).apply()
         val imei = getSharedPreferences("signal_dpc", MODE_PRIVATE).getString("imei", null)
         if (!imei.isNullOrEmpty()) {
-            Thread { ApiClient.updateFcmToken(imei, token) }.start()
+            Thread { ApiClient.updateFcmToken(this, imei, token) }.start()
         }
     }
 
@@ -71,23 +81,36 @@ class SignalFcmService : FirebaseMessagingService() {
         }
         startActivity(intent)
 
-        commandId?.let { Thread { ApiClient.acknowledgeCommand(it) }.start() }
+        commandId?.let { Thread { ApiClient.acknowledgeCommand(this, it) }.start() }
     }
 
     private fun handleUnlock(reason: String, commandId: Int?) {
-        getSharedPreferences("signal_dpc", MODE_PRIVATE)
-            .edit().putBoolean("was_locked", false).apply()
-
-        KioskController.exitFullKiosk(this)
-        KeepAliveService.start(this)
-
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            putExtra("locked", false)
-            putExtra("reason", reason)
+        val prefs = getSharedPreferences("signal_dpc", MODE_PRIVATE)
+        val imei = prefs.getString("imei", null)
+        if (imei.isNullOrBlank()) {
+            Log.w(TAG, "Ignoring unlock: device identifier unavailable")
+            return
         }
-        startActivity(intent)
-
-        commandId?.let { Thread { ApiClient.acknowledgeCommand(it) }.start() }
+        Thread {
+            val refreshed = ApiClient.heartbeat(this, imei)
+            val current = getSharedPreferences("signal_dpc", MODE_PRIVATE)
+            val authorized = refreshed
+                && current.getString("server_device_status", "locked") == "active"
+                && current.getBoolean("unlock_authorized", false)
+            if (!authorized) {
+                Log.w(TAG, "Unlock command held: backend has not authorized device access")
+                return@Thread
+            }
+            current.edit().putBoolean("was_locked", false).apply()
+            KioskController.exitFullKiosk(this)
+            KeepAliveService.start(this)
+            val intent = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra("locked", false)
+                putExtra("reason", reason)
+            }
+            startActivity(intent)
+            commandId?.let { ApiClient.acknowledgeCommand(this, it) }
+        }.start()
     }
 }

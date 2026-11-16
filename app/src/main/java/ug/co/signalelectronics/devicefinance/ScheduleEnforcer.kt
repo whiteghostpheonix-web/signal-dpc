@@ -70,9 +70,11 @@ object ScheduleEnforcer {
             }
 
             val currentlyLocked = prefs.getString("last_lock_state", "unknown") == "locked"
+            val serverStatus = prefs.getString("cached_device_status", "unknown") ?: "unknown"
+            val unlockAuthorized = prefs.getBoolean("unlock_authorized", false)
             val isDeviceOwner = KioskController.isDeviceOwner(context)
 
-            Log.i(TAG, "enforceFromCache: anyOverdue=$anyOverdue currentlyLocked=$currentlyLocked isDeviceOwner=$isDeviceOwner")
+            Log.i(TAG, "enforceFromCache: anyOverdue=$anyOverdue currentlyLocked=$currentlyLocked serverStatus=$serverStatus unlockAuthorized=$unlockAuthorized isDeviceOwner=$isDeviceOwner")
 
             when {
                 anyOverdue && !currentlyLocked -> {
@@ -81,7 +83,7 @@ object ScheduleEnforcer {
                         KioskController.enterFullKiosk(context)
                         DeviceController.lockDevice(context)
                     }
-                    prefs.edit().putString("last_lock_state", "locked").apply()
+                    prefs.edit().putString("last_lock_state", "locked").putBoolean("was_locked", true).apply()
 
                     val intent = Intent(context, MainActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -94,12 +96,13 @@ object ScheduleEnforcer {
                     Log.i(TAG, "Self-locked: $firstOverdueInfo")
                 }
 
-                !anyOverdue && currentlyLocked -> {
-                    // Server said we're clear, exit kiosk
+                !anyOverdue && currentlyLocked && serverStatus == "active" && unlockAuthorized -> {
+                    // Cached dates alone never authorize an unlock. The last authenticated
+                    // heartbeat must explicitly confirm active status and unlock permission.
                     if (isDeviceOwner) {
                         KioskController.exitFullKiosk(context)
                     }
-                    prefs.edit().putString("last_lock_state", "active").apply()
+                    prefs.edit().putString("last_lock_state", "active").putBoolean("was_locked", false).apply()
 
                     val intent = Intent(context, MainActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

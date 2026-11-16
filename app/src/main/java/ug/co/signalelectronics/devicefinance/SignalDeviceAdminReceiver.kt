@@ -45,7 +45,8 @@ class SignalDeviceAdminReceiver : DeviceAdminReceiver() {
                     val value = extras.getString(key)
                     if (value != null) {
                         editor.putString("provisioning_$key", value)
-                        Log.i(TAG, "Provisioning extra: $key = $value")
+                        // Never write enrollment credentials or customer identifiers to logs.
+                        Log.i(TAG, "Provisioning extra received: $key")
                     }
                 }
                 editor.apply()
@@ -57,6 +58,32 @@ class SignalDeviceAdminReceiver : DeviceAdminReceiver() {
         applyBaseRestrictions(context)
         DeviceController.blockUninstall(context)
         KeepAliveService.start(context)
+    }
+
+    override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
+        super.onProfileProvisioningComplete(context, intent)
+        Log.i(TAG, "Device provisioning completed; capturing protected enrollment extras")
+        captureProvisioningExtras(context, intent)
+        applyBaseRestrictions(context)
+        DeviceController.blockUninstall(context)
+        KeepAliveService.start(context)
+    }
+
+    private fun captureProvisioningExtras(context: Context, intent: Intent) {
+        try {
+            val extras = intent.getBundleExtra("android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE")
+                ?: intent.getBundleExtra("android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE")
+                ?: return
+            val editor = context.getSharedPreferences("signal_dpc", Context.MODE_PRIVATE).edit()
+            for (key in extras.keySet()) {
+                val value = extras.getString(key) ?: continue
+                editor.putString("provisioning_$key", value)
+                Log.i(TAG, "Provisioning extra received: $key")
+            }
+            editor.apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to capture provisioning extras", e)
+        }
     }
 
     override fun onDisabled(context: Context, intent: Intent) {
