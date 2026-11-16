@@ -43,7 +43,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="DEVICE FINANCE & PROTECTION"
+                    android:text="DEVICE FINANCE &amp; PROTECTION"
                     android:textColor="#68778D"
                     android:textSize="10sp"
                     android:letterSpacing="0.08" />
