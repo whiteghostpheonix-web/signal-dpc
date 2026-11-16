@@ -19,10 +19,6 @@ class SignalApp : Application() {
         const val NOTIF_CHANNEL_ID = "device_status"
         const val API_BASE = "https://device-finance-api.whiteghostpheonix.workers.dev"
 
-        // Cloudflare Access Service Token — Android app
-        const val CF_ACCESS_CLIENT_ID = "d188c41a7b853686013b955ee9094796.access"
-        const val CF_ACCESS_CLIENT_SECRET = "cfast_REiYmDg61wcFo8BVPmAFHJ9AduQftvR1wMomA34V9acde9d0"
-
         const val WORK_ENFORCE = "signal_enforce_work"
     }
 

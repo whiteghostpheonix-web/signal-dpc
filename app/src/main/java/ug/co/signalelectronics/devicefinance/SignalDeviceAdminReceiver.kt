@@ -34,18 +34,34 @@ class SignalDeviceAdminReceiver : DeviceAdminReceiver() {
         super.onEnabled(context, intent)
         Log.i(TAG, "Device admin enabled — applying base restrictions")
 
-        // Capture the provisioning extras (imei, pending_plan_id, start_date)
-        // that the enrollment QR embedded in PROVISIONING_ADMIN_EXTRAS_BUNDLE.
+        captureProvisioningExtras(context, intent)
+
+        applyBaseRestrictions(context)
+        DeviceController.blockUninstall(context)
+        KeepAliveService.start(context)
+    }
+
+
+    override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
+        super.onProfileProvisioningComplete(context, intent)
+        Log.i(TAG, "Device provisioning complete — capturing enrollment credentials")
+        captureProvisioningExtras(context, intent)
+        applyBaseRestrictions(context)
+        DeviceController.blockUninstall(context)
+        KeepAliveService.start(context)
+    }
+
+    private fun captureProvisioningExtras(context: Context, intent: Intent) {
         try {
             val extras = intent.getBundleExtra("android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE")
             if (extras != null) {
-                val prefs = context.getSharedPreferences("signal_dpc", Context.MODE_PRIVATE)
-                val editor = prefs.edit()
+                val editor = context.getSharedPreferences("signal_dpc", Context.MODE_PRIVATE).edit()
                 for (key in extras.keySet()) {
                     val value = extras.getString(key)
                     if (value != null) {
                         editor.putString("provisioning_$key", value)
-                        Log.i(TAG, "Provisioning extra: $key = $value")
+                        // Never write the one-time enrollment token or its value to logs.
+                        Log.i(TAG, "Provisioning extra captured: $key")
                     }
                 }
                 editor.apply()
@@ -53,10 +69,6 @@ class SignalDeviceAdminReceiver : DeviceAdminReceiver() {
         } catch (e: Exception) {
             Log.w(TAG, "Failed to read provisioning extras", e)
         }
-
-        applyBaseRestrictions(context)
-        DeviceController.blockUninstall(context)
-        KeepAliveService.start(context)
     }
 
     override fun onDisabled(context: Context, intent: Intent) {

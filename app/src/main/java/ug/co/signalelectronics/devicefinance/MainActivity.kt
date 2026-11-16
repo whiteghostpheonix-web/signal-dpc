@@ -36,6 +36,7 @@ class MainActivity : AppCompatActivity() {
         val payBtn = findViewById<Button>(R.id.payButton)
         val supportBtn = findViewById<Button>(R.id.supportButton)
         val actionBtn = findViewById<Button>(R.id.actionButton)
+        findViewById<TextView>(R.id.whitelistApps).text = KioskController.displayWhitelist().joinToString("   •   ")
 
         if (isLocked) {
             title.text = "Device Locked"
@@ -104,6 +105,9 @@ class MainActivity : AppCompatActivity() {
         if (isLocked) {
             try { KioskController.startLockTask(this) } catch (_: Exception) {}
         }
+        if (currentImei.isNotBlank() && DpcCredentialStore.load(this) != null) {
+            Thread { ApiClient.heartbeat(this@MainActivity, currentImei) }.start()
+        }
     }
 
     private fun initialize() {
@@ -114,6 +118,7 @@ class MainActivity : AppCompatActivity() {
         // Read provisioning extras that came from the enrollment QR
         // (imei hint + pending_plan_id + start_date baked in by the dashboard)
         val pendingImei = readProvisioningExtra("imei")
+        val enrollmentToken = readProvisioningExtra("enrollment_token")
         val pendingPlanId = readProvisioningExtra("pending_plan_id")
         val startDate = readProvisioningExtra("start_date")
 
@@ -130,23 +135,23 @@ class MainActivity : AppCompatActivity() {
 
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (task.isSuccessful) {
-                val token = task.result
-                prefs.edit().putString("fcm_token", token).apply()
-                val customerName = prefs.getString("customer_name", "Unknown") ?: "Unknown"
-                val customerPhone = prefs.getString("customer_phone", "") ?: ""
+                val fcmToken = task.result
+                prefs.edit().putString("fcm_token", fcmToken).apply()
                 Thread {
-                    ApiClient.registerDevice(
-                        currentImei,
-                        customerName,
-                        customerPhone,
-                        token,
-                        prefs.getString("pending_plan_id", null),
-                        prefs.getString("pending_start_date", null)
-                    )
-                    // Clear the pending flag once sent
-                    prefs.edit().remove("pending_plan_id").remove("pending_start_date").apply()
-                    ApiClient.heartbeat(this@MainActivity, currentImei)
+                    var authenticated = DpcCredentialStore.load(this@MainActivity) != null
+                    if (!authenticated && !enrollmentToken.isNullOrBlank()) {
+                        authenticated = ApiClient.enrollDevice(this@MainActivity, effectiveImei, enrollmentToken)
+                    }
+                    if (authenticated) {
+                        ApiClient.registerDevice(this@MainActivity, effectiveImei, fcmToken)
+                        ApiClient.heartbeat(this@MainActivity, effectiveImei)
+                    } else {
+                        Log.e(TAG, "Device enrollment/authentication is incomplete; request a fresh admin QR code")
+                    }
+                    if (authenticated) prefs.edit().remove("provisioning_enrollment_token").apply()
                 }.start()
+            } else {
+                Log.w(TAG, "FCM token unavailable; device enrollment will retry on next app launch")
             }
         }
 

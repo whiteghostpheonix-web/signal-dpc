@@ -39,6 +39,8 @@ object KioskController {
     fun isDeviceOwner(ctx: Context): Boolean =
         dpm(ctx).isDeviceOwnerApp(ctx.packageName)
 
+    fun displayWhitelist(): List<String> = listOf("Signal Electronics", "WhatsApp", "WhatsApp Business", "Phone", "Contacts", "Settings")
+
     fun kioskPackages(ctx: Context): Array<String> {
         // Our app + whitelisted
         return (listOf(ctx.packageName) + WHITELIST).toTypedArray()

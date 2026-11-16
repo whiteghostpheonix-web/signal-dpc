@@ -2,7 +2,7 @@ name: Build Signal DPC APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, dpc-secure-enrollment]
   workflow_dispatch:
 
 permissions:
@@ -22,7 +22,7 @@ jobs:
       - name: Install Android SDK packages
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
       - name: Build debug APK
         run: ./gradlew --no-daemon assembleDebug
       - name: Upload APK artifact

@@ -42,7 +42,7 @@ class SignalFcmService : FirebaseMessagingService() {
             .edit().putString("fcm_token", token).apply()
         val imei = getSharedPreferences("signal_dpc", MODE_PRIVATE).getString("imei", null)
         if (!imei.isNullOrEmpty()) {
-            Thread { ApiClient.updateFcmToken(imei, token) }.start()
+            Thread { ApiClient.updateFcmToken(this@SignalFcmService, imei, token) }.start()
         }
     }
 
@@ -71,7 +71,7 @@ class SignalFcmService : FirebaseMessagingService() {
         }
         startActivity(intent)
 
-        commandId?.let { Thread { ApiClient.acknowledgeCommand(it) }.start() }
+        commandId?.let { Thread { ApiClient.acknowledgeCommand(this@SignalFcmService, getSharedPreferences("signal_dpc", MODE_PRIVATE).getString("imei", "") ?: "", it) }.start() }
     }
 
     private fun handleUnlock(reason: String, commandId: Int?) {
@@ -88,6 +88,6 @@ class SignalFcmService : FirebaseMessagingService() {
         }
         startActivity(intent)
 
-        commandId?.let { Thread { ApiClient.acknowledgeCommand(it) }.start() }
+        commandId?.let { Thread { ApiClient.acknowledgeCommand(this@SignalFcmService, getSharedPreferences("signal_dpc", MODE_PRIVATE).getString("imei", "") ?: "", it) }.start() }
     }
 }
