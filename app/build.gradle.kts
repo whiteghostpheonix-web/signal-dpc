@@ -12,8 +12,8 @@ android {
         applicationId = "ug.co.signalelectronics.devicefinance"
         minSdk = 26
         targetSdk = 34
-        versionCode = 12
-        versionName = "0.2.2"
+        versionCode = 26
+        versionName = "0.2.6"
     }
 
     buildTypes {
