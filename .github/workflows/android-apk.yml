@@ -23,6 +23,11 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+      - name: Inspect currently published DPC APK
+        run: |
+          curl -fsSL "https://device-finance-api.whiteghostpheonix.workers.dev/download/apk/signal-dpc-v0.2.5.apk" -o /tmp/current-dpc.apk
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging /tmp/current-dpc.apk | head -1
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs /tmp/current-dpc.apk
       - name: Build debug APK
         run: ./gradlew --no-daemon assembleDebug
       - name: Upload APK artifact
